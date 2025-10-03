@@ -48,6 +48,8 @@ func GetGroup(name string) *Group {
 	mu.RUnlock()
 	return g
 }
+// 缓存命中直接从缓存中读取  
+// 没有命中从getter源中读取
 func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
 		return ByteView{}, fmt.Errorf("key is required")
