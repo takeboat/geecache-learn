@@ -16,6 +16,8 @@ const (
 	defalutReplicas = 50
 )
 
+var _ PeerGetter = (*httpGetter)(nil)
+
 type HttpPool struct {
 	self        string
 	basePath    string
@@ -102,5 +104,3 @@ func (g *httpGetter) Get(group string, key string) ([]byte, error) {
 	}
 	return bytes, nil
 }
-
-var _ PeerGetter = (*httpGetter)(nil)
