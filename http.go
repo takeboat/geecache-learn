@@ -3,12 +3,15 @@ package geecache
 import (
 	"fmt"
 	"geecache/consistenthash"
+	pb "geecache/geecachepb"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -60,8 +63,13 @@ func (p *HttpPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	body, err := proto.Marshal(&pb.Response{Value: view.ByteSlice()})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/ocet-stream")
-	w.Write(view.ByteSlice())
+	w.Write(body)
 }
 func (p *HttpPool) Set(peers ...string) {
 	p.mu.Lock()
@@ -88,19 +96,22 @@ type httpGetter struct {
 	baseURL string
 }
 
-func (g *httpGetter) Get(group string, key string) ([]byte, error) {
-	u := fmt.Sprintf("%s%s/%s", g.baseURL, url.QueryEscape(group), url.QueryEscape(key))
+func (g *httpGetter) Get(in *pb.Request, out *pb.Response) error {
+	u := fmt.Sprintf("%s%s/%s", g.baseURL, url.QueryEscape(in.GetGroup()), url.QueryEscape(in.GetKey()))
 	resp, err := http.Get(u)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned: %v", resp.Status)
+		return fmt.Errorf("server returned: %v", resp.Status)
 	}
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response body: %v", err)
+		return fmt.Errorf("reading response body: %v", err)
 	}
-	return bytes, nil
+	if err = proto.Unmarshal(bytes, out); err != nil {
+		return fmt.Errorf("decoding response body: %v", err)
+	}
+	return nil
 }
